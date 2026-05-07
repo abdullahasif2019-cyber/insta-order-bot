@@ -1,4 +1,5 @@
 require('dotenv').config();
+
 const {
   Client,
   GatewayIntentBits,
@@ -25,97 +26,178 @@ const ORDER_CHANNEL_ID = '1501309625620889621';
 
 let sessions = {};
 
-// -------- ORDER ID --------
+
+// =======================================
+// ORDER ID
+// =======================================
+
 function peekOrderId() {
-  let data = JSON.parse(fs.readFileSync('order_id.json', 'utf-8'));
+  let data = JSON.parse(
+    fs.readFileSync('order_id.json', 'utf-8')
+  );
+
   return `IG${20100 + data.current}`;
 }
 
 function confirmOrderId() {
-  let data = JSON.parse(fs.readFileSync('order_id.json', 'utf-8'));
+  let data = JSON.parse(
+    fs.readFileSync('order_id.json', 'utf-8')
+  );
+
   const id = `IG${20100 + data.current}`;
+
   data.current += 1;
-  fs.writeFileSync('order_id.json', JSON.stringify(data));
+
+  fs.writeFileSync(
+    'order_id.json',
+    JSON.stringify(data)
+  );
+
   return id;
 }
 
-// -------- TODAY COUNT --------
+
+// =======================================
+// TODAY COUNT
+// =======================================
+
+function getTodayData() {
+
+  let data = JSON.parse(
+    fs.readFileSync('orders_today.json', 'utf-8')
+  );
+
+  const today = new Date().toDateString();
+
+  // RESET IF NEW DAY
+  if (data.date !== today) {
+
+    data.date = today;
+    data.count = 0;
+
+    fs.writeFileSync(
+      'orders_today.json',
+      JSON.stringify(data)
+    );
+  }
+
+  return data;
+}
+
 async function updateTodayCount() {
-  let data = JSON.parse(fs.readFileSync('orders_today.json', 'utf-8'));
-let totalData = JSON.parse(fs.readFileSync('order_id.json', 'utf-8'));
 
-const today = new Date().toDateString();
+  let data = getTodayData();
 
-// RESET IF NEW DAY
-if (data.date !== today) {
-  data.date = today;
-  data.count = 0;
+  let totalData = JSON.parse(
+    fs.readFileSync('order_id.json', 'utf-8')
+  );
+
+  // ADD NEW ORDER
+  data.count += 1;
 
   fs.writeFileSync(
     'orders_today.json',
     JSON.stringify(data)
   );
-}
-
-  let today = new Date().toDateString();
-
-  if (data.date !== today) {
-    data.date = today;
-    data.count = 0;
-  }
-
-  data.count += 1;
-  fs.writeFileSync('orders_today.json', JSON.stringify(data));
 
   try {
-    const panelData = JSON.parse(fs.readFileSync('panel.json', 'utf-8'));
-    const channel = await client.channels.fetch(ORDER_CHANNEL_ID);
-    const message = await channel.messages.fetch(panelData.statsMessageId);
+
+    const panelData = JSON.parse(
+      fs.readFileSync('panel.json', 'utf-8')
+    );
+
+    const channel = await client.channels.fetch(
+      ORDER_CHANNEL_ID
+    );
+
+    const message = await channel.messages.fetch(
+      panelData.statsMessageId
+    );
 
     await message.edit({
-      content: `📊 **Orders Today:** ${data.count} | 📦 **Total Orders:** ${totalData.current}\n━━━━━━━━━━━━━━━━━━\n🛒 **Create your order below:**`
+      content:
+`📊 **Orders Today:** ${data.count} | 📦 **Total Orders:** ${totalData.current}
+━━━━━━━━━━━━━━━━━━
+🛒 **Create your order below:**`
     });
-  } catch {}
+
+  } catch (err) {
+    console.log('Panel update failed');
+  }
 
   return data.count;
 }
 
-// -------- READY --------
+
+// =======================================
+// READY
+// =======================================
+
 client.once('ready', async () => {
+
   console.log(`Logged in as ${client.user.tag}`);
 
-  const channel = await client.channels.fetch(ORDER_CHANNEL_ID);
+  const channel = await client.channels.fetch(
+    ORDER_CHANNEL_ID
+  );
 
   const button = new ButtonBuilder()
     .setCustomId('create_order')
     .setLabel('🛒 Create Order')
     .setStyle(ButtonStyle.Primary);
 
-  const row = new ActionRowBuilder().addComponents(button);
+  const row = new ActionRowBuilder()
+    .addComponents(button);
 
-  let panelData = JSON.parse(fs.readFileSync('panel.json', 'utf-8'));
+  let panelData = JSON.parse(
+    fs.readFileSync('panel.json', 'utf-8')
+  );
 
+  // DELETE OLD PANEL
   if (panelData.statsMessageId) {
+
     try {
-      const oldMsg = await channel.messages.fetch(panelData.statsMessageId);
+
+      const oldMsg = await channel.messages.fetch(
+        panelData.statsMessageId
+      );
+
       await oldMsg.delete();
+
     } catch {}
   }
 
-  let data = JSON.parse(fs.readFileSync('orders_today.json', 'utf-8'));
-  let totalData = JSON.parse(fs.readFileSync('order_id.json', 'utf-8'));
+  // GET UPDATED TODAY DATA
+  let data = getTodayData();
 
+  let totalData = JSON.parse(
+    fs.readFileSync('order_id.json', 'utf-8')
+  );
+
+  // CREATE NEW PANEL
   const msg = await channel.send({
-    content: `📊 **Orders Today:** ${data.count} | 📦 **Total Orders:** ${totalData.current}\n━━━━━━━━━━━━━━━━━━\n🛒 **Create your order below:**`,
+    content:
+`📊 **Orders Today:** ${data.count} | 📦 **Total Orders:** ${totalData.current}
+━━━━━━━━━━━━━━━━━━
+🛒 **Create your order below:**`,
     components: [row]
   });
 
   panelData.statsMessageId = msg.id;
-  fs.writeFileSync('panel.json', JSON.stringify(panelData));
+
+  fs.writeFileSync(
+    'panel.json',
+    JSON.stringify(panelData)
+  );
 });
 
-// -------- BUTTON CLICK --------
+
+// =======================================
+// BUTTON CLICK
+// =======================================
+
 client.on('interactionCreate', async (interaction) => {
+
   if (!interaction.isButton()) return;
 
   if (interaction.customId === 'create_order') {
@@ -127,6 +209,7 @@ client.on('interactionCreate', async (interaction) => {
       ephemeral: true
     });
 
+    // CREATE PRIVATE THREAD
     const thread = await interaction.channel.threads.create({
       name: `order-${orderId}`,
       type: ChannelType.PrivateThread,
@@ -135,7 +218,7 @@ client.on('interactionCreate', async (interaction) => {
 
     await thread.members.add(interaction.user.id);
 
-    // ✅ FIX: store by thread.id
+    // SAVE SESSION
     sessions[thread.id] = {
       userId: interaction.user.id,
       step: 0,
@@ -146,18 +229,25 @@ client.on('interactionCreate', async (interaction) => {
     };
 
     await thread.send(`🆔 Order ${orderId}`);
+
     await thread.send("Enter Customer Name:");
 
     await interaction.editReply({
-      content: `✅ Order ${orderId} created\n👉 Open here: ${thread.url}`
+      content:
+`✅ Order ${orderId} created
+👉 Open here: ${thread.url}`
     });
 
+    // DELETE EPHEMERAL REPLY
     setTimeout(async () => {
-      try { await interaction.deleteReply(); } catch {}
+      try {
+        await interaction.deleteReply();
+      } catch {}
     }, 30000);
 
-    // ✅ FIXED CLEANUP LOOP
+    // AUTO CLEANUP
     const interval = setInterval(async () => {
+
       const session = sessions[thread.id];
 
       if (!session) {
@@ -165,40 +255,58 @@ client.on('interactionCreate', async (interaction) => {
         return;
       }
 
-      const inactive = Date.now() - session.lastActivity;
+      const inactive =
+        Date.now() - session.lastActivity;
 
+      // 2 MINUTES INACTIVE
       if (inactive >= 120000) {
+
         try {
-          await session.thread.send("❌ Order cancelled (no response)");
+
+          await session.thread.send(
+            "❌ Order cancelled (no response)"
+          );
 
           await session.thread.setArchived(true);
+
           await session.thread.setLocked(true);
 
           setTimeout(async () => {
-            try { await session.thread.delete(); } catch {}
+
+            try {
+              await session.thread.delete();
+            } catch {}
+
           }, 3000);
 
         } catch {}
 
         delete sessions[thread.id];
+
         clearInterval(interval);
       }
 
-    }, 15000); // check every 15 sec
+    }, 15000);
   }
 });
 
-// -------- MESSAGE FLOW --------
+
+// =======================================
+// MESSAGE FLOW
+// =======================================
+
 client.on('messageCreate', async (message) => {
+
   if (message.author.bot) return;
 
-  // ✅ FIX: find session by thread
   const session = sessions[message.channel.id];
+
   if (!session) return;
 
   session.lastActivity = Date.now();
 
   session.answers.push(message.content);
+
   session.step++;
 
   const questions = [
@@ -211,17 +319,28 @@ client.on('messageCreate', async (message) => {
     "Note:"
   ];
 
+  // ASK NEXT QUESTION
   if (session.step <= questions.length) {
-    await message.channel.send(questions[session.step - 1]);
+
+    await message.channel.send(
+      questions[session.step - 1]
+    );
+
   } else {
 
+    // CONFIRM ORDER ID
     const finalOrderId = confirmOrderId();
+
     session.orderId = finalOrderId;
 
-    const confirmChannel = await client.channels.fetch(CONFIRM_CHANNEL_ID);
+    const confirmChannel =
+      await client.channels.fetch(
+        CONFIRM_CHANNEL_ID
+      );
 
-    const msg = `
-Order ID: ${session.orderId}
+    // FINAL ORDER MESSAGE
+    const msg =
+`Order ID: ${session.orderId}
 
 Name: ${session.answers[0]}
 Phone: ${session.answers[1]}
@@ -232,31 +351,50 @@ Size: ${session.answers[4]}
 Total: ${session.answers[5]} PKR
 
 Payment Type: ${session.answers[6]}
-Note: ${session.answers[7]}
-`;
+Note: ${session.answers[7]}`;
 
-    const sentMsg = await confirmChannel.send(msg);
-    try { await sentMsg.react('🟡'); } catch {}
+    const sentMsg =
+      await confirmChannel.send(msg);
 
-    await message.channel.send("✅ Order submitted");
+    try {
+      await sentMsg.react('🟡');
+    } catch {}
 
+    await message.channel.send(
+      "✅ Order submitted"
+    );
+
+    // UPDATE TODAY COUNT
     await updateTodayCount();
 
-    // DELETE AFTER SUCCESS
+    // DELETE THREAD AFTER SUCCESS
     setTimeout(async () => {
+
       try {
+
         await session.thread.setArchived(true);
+
         await session.thread.setLocked(true);
 
         setTimeout(async () => {
-          try { await session.thread.delete(); } catch {}
+
+          try {
+            await session.thread.delete();
+          } catch {}
+
         }, 3000);
 
       } catch {}
+
     }, 5000);
 
     delete sessions[message.channel.id];
   }
 });
+
+
+// =======================================
+// LOGIN
+// =======================================
 
 client.login(TOKEN);
