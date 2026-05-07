@@ -42,7 +42,20 @@ function confirmOrderId() {
 // -------- TODAY COUNT --------
 async function updateTodayCount() {
   let data = JSON.parse(fs.readFileSync('orders_today.json', 'utf-8'));
-  let totalData = JSON.parse(fs.readFileSync('order_id.json', 'utf-8'));
+let totalData = JSON.parse(fs.readFileSync('order_id.json', 'utf-8'));
+
+const today = new Date().toDateString();
+
+// RESET IF NEW DAY
+if (data.date !== today) {
+  data.date = today;
+  data.count = 0;
+
+  fs.writeFileSync(
+    'orders_today.json',
+    JSON.stringify(data)
+  );
+}
 
   let today = new Date().toDateString();
 
